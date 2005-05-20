@@ -1,0 +1,37 @@
+ClamAV interface Module for AOLserver 3.x/4.0
+Release 1.0
+vlad@crystalballinc.com
+
+This is AOLserver module that implements interface to ClamAv anti-virus.
+
+/*--------------------------------------------------------------------*/
+
+Compiling and Installing
+
+To compile this driver, you'll need to have ClamAV shared library installed.
+
+Configuration
+
+   The following parameters can be used to configure the module:
+
+   ns_section      "ns/server/${server}/module/nsclamav"
+   ns_param        dbdir          /usr/local/share/clamav
+   ns_param	   maxfiles       1000
+   ns_param	   maxfilesize    10485760
+   ns_param	   maxreclevel    5
+   ns_param	   maxratio       200
+   ns_param	   archivememlim  0
+
+Usage
+
+    ns_clamav scanfile filepath
+      Scans the file for visrues, returns information about viruses found, 
+      if no viruses found nothing is returned
+
+    ns_clamav scanbuff data
+      Scans the buffer for visruses, returns information about viruses found, 
+      if no viruses found nothing is returned
+ 
+Authors
+     Vlad Seryakov vlad@crystalballinc.com
+
