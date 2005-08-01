@@ -58,7 +58,7 @@ Ns_ModuleInit(char *server, char *module)
 
     path = Ns_ConfigGetPath(server,module,NULL);
 
-    if(!(db = Ns_ConfigGet(path,"dbdir"))) db = (char*)cl_retdbdir();
+    if(!(db = Ns_ConfigGetValue(path,"dbdir"))) db = (char*)cl_retdbdir();
     if((rc = cl_loaddbdir(db,&ClamAvRoot,&virnum))) {
       Ns_Log(Error,"nsclamav: failed to load db: %s",cl_strerror(rc));
       return NS_ERROR;
@@ -75,7 +75,8 @@ Ns_ModuleInit(char *server, char *module)
     if(!Ns_ConfigGetInt(path,"maxratio",&ClamAvLimits.maxratio)) ClamAvLimits.maxratio = 200;
     if(!Ns_ConfigGetInt(path,"archivememlim",&ClamAvLimits.archivememlim)) ClamAvLimits.archivememlim = 0;
     Ns_Log(Notice,"nsclamav: loaded %d virues",virnum);
-    return Ns_TclInitInterps(server, ClamAvInterpInit, NULL);
+    Ns_TclRegisterTrace(server, ClamAvInterpInit, 0, NS_TCL_TRACE_CREATE);
+    return NS_OK;
 }
 
 static int
