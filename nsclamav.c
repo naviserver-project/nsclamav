@@ -51,35 +51,41 @@ NS_EXPORT int Ns_ModuleVersion = 1;
 NS_EXPORT int Ns_ModuleInit(char *server, char *module)
 {
     char *path, *db;
-    int rc, virnum;
+    int rc, flags = 0;
+    unsigned int virnum;
 
-    if (ClamAvRoot)
+    if (ClamAvRoot) {
         return NS_OK;
+    }
 
     path = Ns_ConfigGetPath(server, module, NULL);
 
-    if (!(db = Ns_ConfigGetValue(path, "dbdir")))
+    memset(&ClamAvLimits, 0, sizeof(struct cl_limits));
+    ClamAvLimits.maxfiles = Ns_ConfigIntRange(path, "maxfiles", 1000, 0, 1000000);
+    ClamAvLimits.maxfilesize = Ns_ConfigIntRange(path, "maxfilesize", 10 * 1048576, 0, 1000 * 1048576);
+    ClamAvLimits.maxreclevel = Ns_ConfigIntRange(path, "maxreclevel", 5, 0, 100);
+    ClamAvLimits.maxratio = Ns_ConfigIntRange(path, "maxratio", 200, 0, 100000);
+    ClamAvLimits.archivememlim = Ns_ConfigIntRange(path, "archivememlim", 0, 0, 10000);
+
+    if (Ns_ConfigBool(path, "ncore", 0)) {
+        flags |= CL_DB_NCORE;
+    }
+
+    if (!(db = Ns_ConfigGetValue(path, "dbdir"))) {
         db = (char *) cl_retdbdir();
-    if ((rc = cl_loaddbdir(db, &ClamAvRoot, &virnum))) {
+    }
+
+    if ((rc = cl_load(db, &ClamAvRoot, &virnum, CL_DB_STDOPT|flags))) {
         Ns_Log(Error, "nsclamav: failed to load db: %s", cl_strerror(rc));
         return NS_ERROR;
     }
+
     if ((rc = cl_build(ClamAvRoot))) {
         Ns_Log(Error, "nsclamav: failed to build trie: %s", cl_strerror(rc));
         cl_free(ClamAvRoot);
         return NS_ERROR;
     }
-    memset(&ClamAvLimits, 0, sizeof(struct cl_limits));
-    if (!Ns_ConfigGetInt(path, "maxfiles", &ClamAvLimits.maxfiles))
-        ClamAvLimits.maxfiles = 1000;
-    if (!Ns_ConfigGetInt(path, "maxfilesize", &ClamAvLimits.maxfilesize))
-        ClamAvLimits.maxfilesize = 10 * 1048576;
-    if (!Ns_ConfigGetInt(path, "maxreclevel", &ClamAvLimits.maxreclevel))
-        ClamAvLimits.maxreclevel = 5;
-    if (!Ns_ConfigGetInt(path, "maxratio", &ClamAvLimits.maxratio))
-        ClamAvLimits.maxratio = 200;
-    if (!Ns_ConfigGetInt(path, "archivememlim", &ClamAvLimits.archivememlim))
-        ClamAvLimits.archivememlim = 0;
+
     Ns_Log(Notice, "nsclamav: loaded %d virues", virnum);
     Ns_TclRegisterTrace(server, ClamAvInterpInit, 0, NS_TCL_TRACE_CREATE);
     return NS_OK;
@@ -93,8 +99,8 @@ static int ClamAvInterpInit(Tcl_Interp * interp, void *context)
 
 static int ClamAvCmd(void *context, Tcl_Interp * interp, int objc, Tcl_Obj * CONST objv[])
 {
-    int rc, cmd, bsize;
-    char *buf;
+    int rc, fd, cmd, bsize;
+    char *buf, tmpfile[128];
     const char *virname;
     unsigned long size = 0;
 
@@ -113,19 +119,31 @@ static int ClamAvCmd(void *context, Tcl_Interp * interp, int objc, Tcl_Obj * CON
         Tcl_AppendResult(interp, "wrong # args: should be ns_clamav command ?args ...?", 0);
         return TCL_ERROR;
     }
-    if (Tcl_GetIndexFromObj(interp, objv[1], sCmd, "command", TCL_EXACT, (int *) &cmd) != TCL_OK)
+    if (Tcl_GetIndexFromObj(interp, objv[1], sCmd, "command", TCL_EXACT, (int *) &cmd) != TCL_OK) {
         return TCL_ERROR;
+    }
 
     switch (cmd) {
     case cmdScanBuff:
         buf = Tcl_GetStringFromObj(objv[2], (int *) &bsize);
-        rc = cl_scanbuff(buf, bsize, &virname, ClamAvRoot);
+        tmpnam(tmpfile);
+        fd = open(tmpfile, O_CREAT|O_RDWR, 0644);
+        if (fd < 0) {
+            Tcl_AppendResult(interp, strerror(errno), 0);
+            return TCL_ERROR;
+        }
+        write(fd, buf, bsize);
+        unlink(tmpfile);
+        rc = cl_scandesc(fd, &virname, &size, ClamAvRoot, &ClamAvLimits, CL_ARCHIVE | CL_MAIL | CL_OLE2);
+        close(fd);
         switch (rc) {
         case CL_VIRUS:
             Tcl_AppendResult(interp, virname, 0);
             break;
+
         case CL_CLEAN:
             break;
+
         default:
             Tcl_AppendResult(interp, cl_strerror(rc), 0);
             return TCL_ERROR;
@@ -138,8 +156,10 @@ static int ClamAvCmd(void *context, Tcl_Interp * interp, int objc, Tcl_Obj * CON
         case CL_VIRUS:
             Tcl_AppendResult(interp, virname, 0);
             break;
+
         case CL_CLEAN:
             break;
+
         default:
             Tcl_AppendResult(interp, cl_strerror(rc), 0);
             return TCL_ERROR;
