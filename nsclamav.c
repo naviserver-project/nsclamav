@@ -67,10 +67,6 @@ NS_EXPORT int Ns_ModuleInit(char *server, char *module)
     ClamAvLimits.maxratio = Ns_ConfigIntRange(path, "maxratio", 200, 0, 100000);
     ClamAvLimits.archivememlim = Ns_ConfigIntRange(path, "archivememlim", 0, 0, 10000);
 
-    if (Ns_ConfigBool(path, "ncore", 0)) {
-        flags |= CL_DB_NCORE;
-    }
-
     if (!(db = Ns_ConfigGetValue(path, "dbdir"))) {
         db = (char *) cl_retdbdir();
     }
@@ -134,7 +130,7 @@ static int ClamAvCmd(void *context, Tcl_Interp * interp, int objc, Tcl_Obj * CON
         }
         write(fd, buf, bsize);
         unlink(tmpfile);
-        rc = cl_scandesc(fd, &virname, &size, ClamAvRoot, &ClamAvLimits, CL_ARCHIVE | CL_MAIL | CL_OLE2);
+        rc = cl_scandesc(fd, &virname, &size, ClamAvRoot, &ClamAvLimits, CL_SCAN_STDOPT);
         close(fd);
         switch (rc) {
         case CL_VIRUS:
@@ -151,7 +147,7 @@ static int ClamAvCmd(void *context, Tcl_Interp * interp, int objc, Tcl_Obj * CON
         break;
 
     case cmdScanFile:
-        rc = cl_scanfile(Tcl_GetString(objv[2]), &virname, &size, ClamAvRoot, &ClamAvLimits, CL_ARCHIVE | CL_MAIL | CL_OLE2);
+        rc = cl_scanfile(Tcl_GetString(objv[2]), &virname, &size, ClamAvRoot, &ClamAvLimits, CL_SCAN_STDOPT);
         switch (rc) {
         case CL_VIRUS:
             Tcl_AppendResult(interp, virname, 0);
