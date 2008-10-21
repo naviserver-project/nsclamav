@@ -64,7 +64,6 @@ NS_EXPORT int Ns_ModuleInit(char *server, char *module)
     ClamAvLimits.maxfiles = Ns_ConfigIntRange(path, "maxfiles", 1000, 0, 1000000);
     ClamAvLimits.maxfilesize = Ns_ConfigIntRange(path, "maxfilesize", 10 * 1048576, 0, 1000 * 1048576);
     ClamAvLimits.maxreclevel = Ns_ConfigIntRange(path, "maxreclevel", 5, 0, 100);
-    ClamAvLimits.maxratio = Ns_ConfigIntRange(path, "maxratio", 200, 0, 100000);
     ClamAvLimits.archivememlim = Ns_ConfigIntRange(path, "archivememlim", 0, 0, 10000);
 
     if (!(db = Ns_ConfigGetValue(path, "dbdir"))) {
